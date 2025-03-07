@@ -1,0 +1,108 @@
+= Experiments with Confluent Schema Clusters
+
+== Pre-conditions
+
+You need a docker installation and the command line tool `jq` for this demo.
+
+== How to run
+
+Start the cluster:
+
+```shell
+docker compose up -d
+```
+
+== Experimenting
+
+You should have a cluster with a single broker and three schema registry instances.
+The instances with hostnames `schema-registry` (external Port 8081) and `schema-registry2` (external Port 18081) work together as one cluster.
+Only `schema-registry` is eligible to be the leader of that cluster.
+The third instance `schema-registry3` (external port 28081) runs stand-alone.
+
+Let's prepare two schemas for upload.
+
+```shell
+export MEASUREMENT1_SCHEMA=$(jq -n --rawfile schema avro/measurement-v1.avsc '{schema: $schema}')
+export MEASUREMENT2_SCHEMA=$(jq -n --rawfile schema avro/measurement-v2.avsc '{schema: $schema}')
+```
+
+Upload the first schema to the primary schema registry of the schema registry cluster:
+
+```shell
+docker compose exec schema-registry curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+--data "$MEASUREMENT1_SCHEMA" \
+http://localhost:8081/subjects/measurements-value/versions
+```
+
+Query the schema versions of the subject `measurements-value`:
+
+```shell
+docker compose exec schema-registry curl http://localhost:8081/subjects/measurements-value/versions
+```
+
+Run the same query against the secondary schema registry instance (note that we run this command in the other container!):
+
+```shell
+docker compose exec schema-registry2 curl http://localhost:8081/subjects/measurements-value/versions
+```
+
+Run the same query against the third, indepedendent schema registry instance (note that we run this command in the other container!):
+
+```shell
+docker compose exec schema-registry3 curl http://localhost:8081/subjects/measurements-value/versions
+```
+
+Even if the schema registry is supposed to be completely independent by having a different group id, it shows the schema as well. The reason is that it uses the same internal topic called `_schema` for storing its schemas. This setup can lead to all kinds of problems and must be avoided!
+
+Open the `compose.yml` file and find `schema-registry3`. enable the environment variable `SCHEMA_REGISTRY_KAFKASTORE_TOPIC` by removing the `#`. Then save the file and restart the container by running:
+
+```shell
+docker compose up -d
+```
+
+
+If you run the query again, you will see that the third SR instance does not contain the registered schema. This is because we have now configured the name of the topic where this instance stores its schemas to be `_schemas_independent_schema_registry` instead of the default value `_schemas`.
+
+=== Leader and non-leader schema registry instances
+
+Let's see if the secondary schema registry instance is actually read-only as expected:
+
+Make sure that their is one version of the schema registered:
+
+```shell
+docker compose exec schema-registry2 curl http://localhost:8081/subjects/measurements-value/versions
+```
+
+Now shut down the leader instance:
+
+```shell
+docker compose down schema-registry
+```
+
+Check the version again:
+
+```shell
+docker compose exec schema-registry2 curl http://localhost:8081/subjects/measurements-value/versions
+```
+
+This should still work. Now let's try to register an update for the schema
+
+```shell
+docker compose exec schema-registry2 curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://localhost:8081/subjects/measurements-value/versions
+```
+
+You will see an error messages as the leader is not available.
+
+Let's start the leader instance again.
+
+```shell
+docker compose up schema-registry -d
+```
+
+After a while, it is possible again to register the updated schema.
+
+== How to shutdown
+
+```shell
+docker compose down -v
+```
