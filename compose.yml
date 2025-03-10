@@ -62,7 +62,8 @@ services:
       SCHEMA_REGISTRY_LEADER_ELIGIBILITY: true
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:9092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-      SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: "io.confluent.kafka.schemaregistry.rulehandler.RuleSetResourceExtension"
+      SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: "io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension,io.confluent.kafka.schemaregistry.rulehandler.RuleSetResourceExtension"
+      #SCHEMA_REGISTRY_CONFLUENT_LICENSE: "Add your license here"
 
   schema-registry2:
     image: confluentinc/cp-schema-registry:${CP_VERSION}
@@ -79,7 +80,8 @@ services:
       SCHEMA_REGISTRY_LEADER_ELIGIBILITY: false
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:9092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-      SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: "io.confluent.kafka.schemaregistry.rulehandler.RuleSetResourceExtension"
+      SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: "io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension,io.confluent.kafka.schemaregistry.rulehandler.RuleSetResourceExtension"
+      #SCHEMA_REGISTRY_CONFLUENT_LICENSE: "Add your license here"
 
   schema-registry3:
     image: confluentinc/cp-schema-registry:${CP_VERSION}
@@ -95,7 +97,9 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:9092'
       #SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_independent_schema_registry
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-      SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: "io.confluent.kafka.schemaregistry.rulehandler.RuleSetResourceExtension"
+      SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: "io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension,io.confluent.kafka.schemaregistry.rulehandler.RuleSetResourceExtension"
+      # io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
+      #SCHEMA_REGISTRY_CONFLUENT_LICENSE: "Add your license here"
 
   control-center:
     image: confluentinc/cp-enterprise-control-center:${CP_VERSION}

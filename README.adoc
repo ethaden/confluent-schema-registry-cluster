@@ -101,6 +101,12 @@ docker compose up schema-registry -d
 
 After a while, it is possible again to register the updated schema.
 
+== Commercial License for Confluent Platform
+
+This part requires a valid license for Confluent Platform (not provided in this demo).
+For demonstration purposes, this demo has enabled some commercial features which require a valid license.
+
+
 == How to shutdown
 
 ```shell
