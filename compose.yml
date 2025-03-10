@@ -1,5 +1,12 @@
 ---
 services:
+  cp-schema-registry-faketime:
+    image: cp-schema-registry-faketime:${CP_VERSION}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CP_VERSION: ${CP_VERSION}
   broker1:
     image: confluentinc/cp-server:${CP_VERSION}
     hostname: broker1
@@ -97,12 +104,16 @@ services:
       CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "broker1:9092"
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:${CP_VERSION}
+    image: cp-schema-registry-faketime:${CP_VERSION}
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
       - broker1
       - broker2
+      - cp-schema-registry-faketime
+    volumes:
+      - ./config/schema_registry_jaas_config.conf:/etc/schema-registry/schema_registry_jaas_config.conf
+      - ./config/schema_registry_password_file:/etc/schema-registry/schema_registry_password_file
     networks:
       - kafka
     ports:
@@ -114,17 +125,31 @@ services:
       SCHEMA_REGISTRY_LEADER_ELIGIBILITY: true
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker1:9092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      # For testing authentication/authorization and license handling, enable the following lines
       SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
       SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_AUTHORIZER_CLASS: io.confluent.kafka.schemaregistry.security.authorizer.schemaregistryacl.SchemaRegistryAclAuthorizer
+      SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
+      SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
+      SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,user
+      SCHEMA_REGISTRY_OPTS: -Djava.security.auth.login.config=/etc/schema-registry/schema_registry_jaas_config.conf
+      # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
+      # The following lines allow manipulating the date/time in the container
+      LD_PRELOAD: ""
+      #FAKETIME: +30d
 
   schema-registry2:
+    #image: cp-schema-registry-faketime:${CP_VERSION}
     image: confluentinc/cp-schema-registry:${CP_VERSION}
     hostname: schema-registry2
     container_name: schema-registry2
     depends_on:
       - broker1
       - broker2
+      - cp-schema-registry-faketime
+    volumes:
+      - ./config/schema_registry_jaas_config.conf:/etc/schema-registry/schema_registry_jaas_config.conf
+      - ./config/schema_registry_password_file:/etc/schema-registry/schema_registry_password_file
     networks:
       - kafka
     ports:
@@ -136,17 +161,29 @@ services:
       SCHEMA_REGISTRY_LEADER_ELIGIBILITY: false
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker1:9092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      # For testing authentication/authorization and license handling, enable the following lines
       SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
       SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_AUTHORIZER_CLASS: io.confluent.kafka.schemaregistry.security.authorizer.schemaregistryacl.SchemaRegistryAclAuthorizer
+      SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
+      SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
+      SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,user
+      SCHEMA_REGISTRY_OPTS: -Djava.security.auth.login.config=/etc/schema-registry/schema_registry_jaas_config.conf
+      # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
-
+      # The following lines allow manipulating the date/time in the container
+      LD_PRELOAD: ""
+      #FAKETIME: +30d
   schema-registry3:
-    image: confluentinc/cp-schema-registry:${CP_VERSION}
+    image: cp-schema-registry-faketime:${CP_VERSION}
     hostname: schema-registry3
     container_name: schema-registry3
     depends_on:
       - broker1
       - broker2
+      - cp-schema-registry-faketime
+    volumes:
+      - ./config/schema_registry_jaas_config.conf:/etc/schema-registry/schema_registry_jaas_config.conf
+      - ./config/schema_registry_password_file:/etc/schema-registry/schema_registry_password_file
     networks:
       - kafka
     ports:
@@ -155,12 +192,21 @@ services:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry3
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: independent-second-schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker1:9092'
-      #SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_independent_schema_registry
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_independent_schema_registry
+      SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_ACL_TOPIC: _schemas_acl_independent_schema_registry
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      # For testing authentication/authorization and license handling, enable the following lines
       SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
       SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_AUTHORIZER_CLASS: io.confluent.kafka.schemaregistry.security.authorizer.schemaregistryacl.SchemaRegistryAclAuthorizer
+      SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
+      SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
+      SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,user
+      SCHEMA_REGISTRY_OPTS: -Djava.security.auth.login.config=/etc/schema-registry/schema_registry_jaas_config.conf
+      # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
-
+      # The following lines allow manipulating the date/time in the container
+      LD_PRELOAD: ""
+      #FAKETIME: +30d
   control-center:
     image: confluentinc/cp-enterprise-control-center:${CP_VERSION}
     hostname: control-center

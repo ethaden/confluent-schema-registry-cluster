@@ -12,6 +12,61 @@ Start the cluster:
 docker compose up -d
 ```
 
+We enable ACLs in Schema Registry for demonstration purposes with two users:
+
+* admin (password: admin) shall have full access
+* user (password: user) shall have read-only access
+
+Let's set the corresponding ACLs:
+
+```shell
+docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
+docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
+```
+
+Now let's try to access the schema registry without credentials:
+
+```shell
+curl localhost:8081/schemas/ids
+```
+
+You will get an error code `Unauthorized`. Let's try with username and password:
+
+```shell
+curl -u admin:admin localhost:8081/schemas/ids
+```
+
+This works, but there is simply no schema in the schema registry yet.
+
+However, let's check the other instances of SR as well:
+
+```shell
+curl -u admin:admin localhost:18081/schemas/ids
+```
+
+```shell
+curl -u admin:admin localhost:28081/schemas/ids
+```
+
+Both will fail even though they have the same users with identical passwords configured.
+But we need to specify ACLs for them explicitely, too. Let's do so:
+
+```shell
+docker compose exec schema-registry2 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
+docker compose exec schema-registry2 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
+docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
+docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
+```
+
+We can list the ACLs like this:
+
+```shell
+docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --list
+docker compose exec schema-registry2 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --list
+docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --list
+```
+
+
 == Experimenting
 
 You should have a cluster with a single broker and three schema registry instances.
@@ -29,7 +84,7 @@ export MEASUREMENT2_SCHEMA=$(jq -n --rawfile schema avro/measurement-v2.avsc '{s
 Upload the first schema to the primary schema registry of the schema registry cluster:
 
 ```shell
-docker compose exec schema-registry curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+docker compose exec schema-registry curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
 --data "$MEASUREMENT1_SCHEMA" \
 http://localhost:8081/subjects/measurements-value/versions
 ```
@@ -37,19 +92,19 @@ http://localhost:8081/subjects/measurements-value/versions
 Query the schema versions of the subject `measurements-value`:
 
 ```shell
-docker compose exec schema-registry curl http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Run the same query against the secondary schema registry instance (note that we run this command in the other container!):
 
 ```shell
-docker compose exec schema-registry2 curl http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Run the same query against the third, indepedendent schema registry instance (note that we run this command in the other container!):
 
 ```shell
-docker compose exec schema-registry3 curl http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry3 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Even if the schema registry is supposed to be completely independent by having a different group id, it shows the schema as well. The reason is that it uses the same internal topic called `_schema` for storing its schemas. This setup can lead to all kinds of problems and must be avoided!
@@ -70,7 +125,7 @@ Let's see if the secondary schema registry instance is actually read-only as exp
 Make sure that their is one version of the schema registered:
 
 ```shell
-docker compose exec schema-registry2 curl http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Now shut down the leader instance:
@@ -82,13 +137,13 @@ docker compose down schema-registry
 Check the version again:
 
 ```shell
-docker compose exec schema-registry2 curl http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 This should still work. Now let's try to register an update for the schema
 
 ```shell
-docker compose exec schema-registry2 curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://localhost:8081/subjects/measurements-value/versions
 ```
 
 You will see an error messages as the leader is not available.
@@ -105,6 +160,17 @@ After a while, it is possible again to register the updated schema.
 
 This part requires a valid license for Confluent Platform (not provided in this demo).
 For demonstration purposes, this demo has enabled some commercial features which require a valid license.
+We also use more than one broker here which disables the use of the imn-build single-node license.
+
+Let's check the log files of any of the schema registry instance, e.g. the first one:
+
+```shell
+docker compose logs schema-registry|grep -i license
+```
+
+You will find something like this: `INFO Trial license for Confluent Enterprise expires in X days`.
+
+
 
 
 == How to shutdown
