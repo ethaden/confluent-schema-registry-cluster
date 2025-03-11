@@ -4,7 +4,20 @@
 
 You need a docker installation and the command line tool `jq` for this demo.
 
-== How to run
+== How to run automatic setup
+
+For convenience, this demo contains a script for setting up all the steps explained below.
+
+If you want to have a third independent schema registry instance, please activate the corresponding docker compose profile by setting the environment variable as stated below.
+Otherwise, just continue.
+
+Start the demo by running:
+
+```shell
+./start.sh
+```
+
+== How to run manually
 
 Start the cluster:
 
