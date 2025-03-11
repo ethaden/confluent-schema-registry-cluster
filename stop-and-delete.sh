@@ -1,2 +1,2 @@
 #!/bin/bash
-docker compose down -v
+COMPOSE_PROFILES=IndependentSchemaRegistry,controlcenter docker compose down -v

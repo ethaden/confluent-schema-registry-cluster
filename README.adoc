@@ -20,32 +20,28 @@ We enable ACLs in Schema Registry for demonstration purposes with two users:
 Let's set the corresponding ACLs:
 
 ```shell
-docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
+docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -p 'admin' -o '*' 
 docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
 ```
 
 Now let's try to access the schema registry without credentials:
 
 ```shell
-curl localhost:8081/schemas/ids
+docker compose exec schema-registry curl localhost:8081/subjects
 ```
 
 You will get an error code `Unauthorized`. Let's try with username and password:
 
 ```shell
-curl -u admin:admin localhost:8081/schemas/ids
+docker compose exec schema-registry curl -u admin:admin localhost:8081/subjects
 ```
 
 This works, but there is simply no schema in the schema registry yet.
 
-However, let's check the other instances of SR as well:
+However, let's check the other (read-only) instance of SR as well:
 
 ```shell
-curl -u admin:admin localhost:18081/schemas/ids
-```
-
-```shell
-curl -u admin:admin localhost:28081/schemas/ids
+docker compose exec schema-registry2 curl -u admin:admin localhost:8081/subjects
 ```
 
 Both will fail even though they have the same users with identical passwords configured.
@@ -54,8 +50,6 @@ But we need to specify ACLs for them explicitely, too. Let's do so:
 ```shell
 docker compose exec schema-registry2 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
 docker compose exec schema-registry2 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
-docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
-docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
 ```
 
 We can list the ACLs like this:
@@ -63,7 +57,6 @@ We can list the ACLs like this:
 ```shell
 docker compose exec schema-registry sr-acl-cli --config /etc/schema-registry/schema-registry.properties --list
 docker compose exec schema-registry2 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --list
-docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --list
 ```
 
 
@@ -86,37 +79,21 @@ Upload the first schema to the primary schema registry of the schema registry cl
 ```shell
 docker compose exec schema-registry curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
 --data "$MEASUREMENT1_SCHEMA" \
-http://localhost:8081/subjects/measurements-value/versions
+http://schema-registry:8081/subjects/measurements-value/versions
 ```
 
 Query the schema versions of the subject `measurements-value`:
 
 ```shell
-docker compose exec schema-registry curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry curl -u admin:admin http://schema-registry:8081/subjects/measurements-value/versions
 ```
 
 Run the same query against the secondary schema registry instance (note that we run this command in the other container!):
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://schema-registry2:8081/subjects/measurements-value/versions
 ```
 
-Run the same query against the third, indepedendent schema registry instance (note that we run this command in the other container!):
-
-```shell
-docker compose exec schema-registry3 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
-```
-
-Even if the schema registry is supposed to be completely independent by having a different group id, it shows the schema as well. The reason is that it uses the same internal topic called `_schema` for storing its schemas. This setup can lead to all kinds of problems and must be avoided!
-
-Open the `compose.yml` file and find `schema-registry3`. enable the environment variable `SCHEMA_REGISTRY_KAFKASTORE_TOPIC` by removing the `#`. Then save the file and restart the container by running:
-
-```shell
-docker compose up -d
-```
-
-
-If you run the query again, you will see that the third SR instance does not contain the registered schema. This is because we have now configured the name of the topic where this instance stores its schemas to be `_schemas_independent_schema_registry` instead of the default value `_schemas`.
 
 === Leader and non-leader schema registry instances
 
@@ -125,7 +102,7 @@ Let's see if the secondary schema registry instance is actually read-only as exp
 Make sure that their is one version of the schema registered:
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://schema-registry2:8081/subjects/measurements-value/versions
 ```
 
 Now shut down the leader instance:
@@ -137,13 +114,13 @@ docker compose down schema-registry
 Check the version again:
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://schema-registry2:8081/subjects/measurements-value/versions
 ```
 
 This should still work. Now let's try to register an update for the schema
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://localhost:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://schema-registry2:8081/subjects/measurements-value/versions
 ```
 
 You will see an error messages as the leader is not available.
@@ -155,6 +132,51 @@ docker compose up schema-registry -d
 ```
 
 After a while, it is possible again to register the updated schema.
+
+== Independent Schema Registry Instance on same cluster
+
+It is possible to run multiple independent schema registry instance on the same Kafka cluster.
+However, they need to be configured properly.
+
+For demonstration purposes, a third schema registry instance has been configured in the docker compose file, which is not active by default.
+
+You can activate it by using the defined docker compose profile, e.g. by setting the profiles environment variable:
+
+```shell
+export COMPOSE_PROFILES=IndependentSchemaRegistry
+```
+
+Run the demo:
+
+```shell
+docker compose up -d
+```
+
+Here, we have not yet configured that instance properly. It will use the same topics for schemas and acls as the other two instance, but these instances won't know about each other which can cause all kinds of trouble.
+
+Run the same query as above against the third, indepedendent schema registry instance (note that we run this command in the other container!):
+
+```shell
+docker compose exec schema-registry3 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
+```
+
+Even if the schema registry is supposed to be completely independent by having a different group id, it shows the schema as well. The reason is that it uses the same internal topic called `_schema` for storing its schemas. This setup can lead to all kinds of problems and must be avoided!
+
+Open the `compose.yml` file and find `schema-registry3`. enable the environment variables `SCHEMA_REGISTRY_KAFKASTORE_TOPIC` and `SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_ACL_TOPIC` by removing the `#`. Then save the file and restart the container by running:
+
+```shell
+docker compose up -d
+```
+
+Set ACLs:
+
+```shell
+docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -s '*' -o '*' -p 'admin'
+docker compose exec schema-registry3 sr-acl-cli --config /etc/schema-registry/schema-registry.properties --add -o 'SUBJECT_READ:GLOBAL_READ' -s '*' -t '*' -p 'user'
+```
+
+If you run the query again, you will see that the third SR instance does not contain the registered schema. This is because we have now configured the name of the topic where this instance stores its schemas to be `_schemas_independent_schema_registry` instead of the default value `_schemas`.
+
 
 == Commercial License for Confluent Platform
 

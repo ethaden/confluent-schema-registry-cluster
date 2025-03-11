@@ -7,6 +7,8 @@ services:
       dockerfile: Dockerfile
       args:
         CP_VERSION: ${CP_VERSION}
+    networks:
+      - kafka
   broker1:
     image: confluentinc/cp-server:${CP_VERSION}
     hostname: broker1
@@ -16,6 +18,8 @@ services:
     ports:
       - "9092:29092"
       - "9101:9101"
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "broker1", "9092" ]
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -64,6 +68,8 @@ services:
     ports:
       - "19092:29092"
       - "19101:9101"
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "broker2", "9092" ]
     environment:
       KAFKA_NODE_ID: 2
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -108,9 +114,12 @@ services:
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
-      - broker1
-      - broker2
-      - cp-schema-registry-faketime
+      broker1:
+        condition: service_healthy
+      broker2:
+        condition: service_healthy
+      cp-schema-registry-faketime:
+        condition: service_started
     volumes:
       - ./config/schema_registry_jaas_config.conf:/etc/schema-registry/schema_registry_jaas_config.conf
       - ./config/schema_registry_password_file:/etc/schema-registry/schema_registry_password_file
@@ -118,12 +127,15 @@ services:
       - kafka
     ports:
       - "8081:8081"
+    healthcheck:
+      test: [ "CMD", "curl", "http://schema-registry:8081" ]
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
       # This instance can be the leader
       SCHEMA_REGISTRY_LEADER_ELIGIBILITY: true
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker1:9092'
+      SCHEMA_REGISTRY_KAFKASTORE_REPLICATION_FACTOR: 2
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       # For testing authentication/authorization and license handling, enable the following lines
       SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
@@ -131,6 +143,7 @@ services:
       SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
       SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
       SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,user
+      SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_AUTH_MECHANISM: JETTY_AUTH
       SCHEMA_REGISTRY_OPTS: -Djava.security.auth.login.config=/etc/schema-registry/schema_registry_jaas_config.conf
       # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
@@ -144,9 +157,14 @@ services:
     hostname: schema-registry2
     container_name: schema-registry2
     depends_on:
-      - broker1
-      - broker2
-      - cp-schema-registry-faketime
+      broker1:
+        condition: service_healthy
+      broker2:
+        condition: service_healthy
+      cp-schema-registry-faketime:
+        condition: service_started
+      schema-registry:
+        condition: service_healthy
     volumes:
       - ./config/schema_registry_jaas_config.conf:/etc/schema-registry/schema_registry_jaas_config.conf
       - ./config/schema_registry_password_file:/etc/schema-registry/schema_registry_password_file
@@ -154,12 +172,15 @@ services:
       - kafka
     ports:
       - "18081:8081"
+    healthcheck:
+      test: [ "CMD", "curl", "http://schema-registry2:8081" ]
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry2
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
       # This instance will never be the leader
       SCHEMA_REGISTRY_LEADER_ELIGIBILITY: false
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker1:9092'
+      SCHEMA_REGISTRY_KAFKASTORE_REPLICATION_FACTOR: 2
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       # For testing authentication/authorization and license handling, enable the following lines
       SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
@@ -167,6 +188,7 @@ services:
       SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
       SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
       SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,user
+      SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_AUTH_MECHANISM: JETTY_AUTH
       SCHEMA_REGISTRY_OPTS: -Djava.security.auth.login.config=/etc/schema-registry/schema_registry_jaas_config.conf
       # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
@@ -177,10 +199,21 @@ services:
     image: cp-schema-registry-faketime:${CP_VERSION}
     hostname: schema-registry3
     container_name: schema-registry3
+    profiles:
+      - IndependentSchemaRegistry
     depends_on:
-      - broker1
-      - broker2
-      - cp-schema-registry-faketime
+      broker1:
+        condition: service_healthy
+      broker2:
+        condition: service_healthy
+      cp-schema-registry-faketime:
+        condition: service_started
+      # Here, we make this actual independent instance wait for the other instances just to ensure that it is the one which fails while not being configured properly
+      # Otherwise, it wouldn't be clear which instance fails (race condition)
+      schema-registry:
+        condition: service_healthy
+      schema-registry2:
+        condition: service_healthy
     volumes:
       - ./config/schema_registry_jaas_config.conf:/etc/schema-registry/schema_registry_jaas_config.conf
       - ./config/schema_registry_password_file:/etc/schema-registry/schema_registry_password_file
@@ -188,12 +221,15 @@ services:
       - kafka
     ports:
       - "28081:8081"
+    healthcheck:
+      test: [ "CMD", "curl", "http://schema-registry3:8081" ]
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry3
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: independent-second-schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker1:9092'
-      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_independent_schema_registry
-      SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_ACL_TOPIC: _schemas_acl_independent_schema_registry
+      SCHEMA_REGISTRY_KAFKASTORE_REPLICATION_FACTOR: 1
+      #SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_independent_schema_registry
+      #SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_ACL_TOPIC: _schemas_acl_independent_schema_registry
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       # For testing authentication/authorization and license handling, enable the following lines
       SCHEMA_REGISTRY_RESOURCE_EXTENSION_CLASS: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
@@ -201,6 +237,7 @@ services:
       SCHEMA_REGISTRY_AUTHENTICATION_METHOD: BASIC
       SCHEMA_REGISTRY_AUTHENTICATION_REALM: SchemaRegistry
       SCHEMA_REGISTRY_AUTHENTICATION_ROLES: admin,user
+      SCHEMA_REGISTRY_CONFLUENT_SCHEMA_REGISTRY_AUTH_MECHANISM: JETTY_AUTH
       SCHEMA_REGISTRY_OPTS: -Djava.security.auth.login.config=/etc/schema-registry/schema_registry_jaas_config.conf
       # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
@@ -214,9 +251,12 @@ services:
     profiles:
       - controlcenter
     depends_on:
-      - broker1
-      - broker2
-      - schema-registry
+      broker1:
+        condition: service_healthy
+      broker2:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     networks:
       - kafka
     ports:
