@@ -92,19 +92,19 @@ Upload the first schema to the primary schema registry of the schema registry cl
 ```shell
 docker compose exec schema-registry curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
 --data "$MEASUREMENT1_SCHEMA" \
-http://schema-registry:8081/subjects/measurements-value/versions
+http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Query the schema versions of the subject `measurements-value`:
 
 ```shell
-docker compose exec schema-registry curl -u admin:admin http://schema-registry:8081/subjects/measurements-value/versions
+docker compose exec schema-registry curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Run the same query against the secondary schema registry instance (note that we run this command in the other container!):
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin http://schema-registry2:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 
@@ -115,7 +115,7 @@ Let's see if the secondary schema registry instance is actually read-only as exp
 Make sure that their is one version of the schema registered:
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin http://schema-registry2:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 Now shut down the leader instance:
@@ -127,13 +127,13 @@ docker compose down schema-registry
 Check the version again:
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin http://schema-registry2:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
 This should still work. Now let's try to register an update for the schema
 
 ```shell
-docker compose exec schema-registry2 curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://schema-registry2:8081/subjects/measurements-value/versions
+docker compose exec schema-registry2 curl -u admin:admin -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$MEASUREMENT2_SCHEMA" http://localhost:8081/subjects/measurements-value/versions
 ```
 
 You will see an error messages as the leader is not available.
@@ -205,7 +205,17 @@ docker compose logs schema-registry|grep -i license
 
 You will find something like this: `INFO Trial license for Confluent Enterprise expires in X days`.
 
+The used images are prepared to preload a library called `libfaketime`. This will allow us to simulate dates in the future, for example
 
+```shell
+docker compose exec schema-registry bash -c 'FAKETIME="+31d" date'
+```
+
+Let's play with our time machine and simulate that the trial period is over. For this, we enable the FAKETIME environment variable removing the comment symbol on the lines in `compose.yml` for all schema registry instances. Then we restart the schema registry instances:
+
+```shell
+docker compose up -d
+```
 
 
 == How to shutdown

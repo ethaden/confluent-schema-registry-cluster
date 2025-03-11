@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
       args:
         CP_VERSION: ${CP_VERSION}
+        FAKETIME_TAG: ${FAKETIME_TAG}
     networks:
       - kafka
   broker1:
@@ -148,8 +149,7 @@ services:
       # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
       # The following lines allow manipulating the date/time in the container
-      LD_PRELOAD: ""
-      #FAKETIME: +30d
+      #FAKETIME: +31d
 
   schema-registry2:
     #image: cp-schema-registry-faketime:${CP_VERSION}
@@ -193,8 +193,7 @@ services:
       # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
       # The following lines allow manipulating the date/time in the container
-      LD_PRELOAD: ""
-      #FAKETIME: +30d
+      #FAKETIME: +31d
   schema-registry3:
     image: cp-schema-registry-faketime:${CP_VERSION}
     hostname: schema-registry3
@@ -242,8 +241,7 @@ services:
       # For setting the license, enable the following line:
       #SCHEMA_REGISTRY_CONFLUENT_LICENSE: <Add YOUR LICENSE HERE>
       # The following lines allow manipulating the date/time in the container
-      LD_PRELOAD: ""
-      #FAKETIME: +30d
+      #FAKETIME: +31d
   control-center:
     image: confluentinc/cp-enterprise-control-center:${CP_VERSION}
     hostname: control-center
