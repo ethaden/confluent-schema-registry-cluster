@@ -17,6 +17,8 @@ Start the demo by running:
 ./start.sh
 ```
 
+Note: Sometimes you might face an error when starting schema registry. This can happen due to a deficiency of this demo where the SR ACL topic is not created fast enough during the initial setup. Please just run the start shell or `docker compose up -d` again.
+
 == How to run manually
 
 Start the cluster:

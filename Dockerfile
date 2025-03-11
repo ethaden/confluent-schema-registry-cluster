@@ -16,4 +16,4 @@ FROM confluentinc/cp-schema-registry:${CP_VERSION} AS schema-registry-faketime
 COPY --from=schema-registry-image-builder /libfaketime/src/libfaketime.so.1 /usr/local/lib
 COPY --from=schema-registry-image-builder /libfaketime/src/libfaketimeMT.so.1 /usr/local/lib
 ENV LD_PRELOAD=/usr/local/lib/libfaketime.so.1
-ENV FAKETIME=""
+ENV FAKETIME="+0d"
