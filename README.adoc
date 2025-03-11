@@ -217,6 +217,35 @@ Let's play with our time machine and simulate that the trial period is over. For
 docker compose up -d
 ```
 
+Follow the logs by running
+
+```shell
+docker compose logs -f schema-registry
+```
+
+After a while all schema registry instances will throw exceptions like this `ERROR License validation failed` and refuse to serve any data.
+When querying data an error messages is returned:
+
+```shell
+docker compose exec schema-registry curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
+```
+
+Please add now your valid Confluent Platform license to the `compose.yml` file as value for the variable `SCHEMA_REGISTRY_CONFLUENT_LICENSE`.
+Then restart the schema registry instances:
+
+```shell
+docker compose up -d
+```
+
+Check the logs again:
+
+```shell
+docker compose logs -f schema-registry
+```
+
+You will see something like `License for HOSTNAME expires in XY days on DATE` and the schema registry instances work again, with all commercial features.
+
+WARNING: If your are using a version management system such as `git`, please make sure not to commit your license to your repository now.
 
 == How to shutdown
 
