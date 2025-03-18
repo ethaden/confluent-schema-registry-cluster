@@ -4,6 +4,13 @@
 
 You need a docker installation and the command line tool `jq` for this demo.
 
+If you want to use run `control-center` (optional) please set enable the corresponding Docker Compose Profile:
+
+```shell
+export COMPOSE_PROFILE=controlcenter
+```
+
+
 == How to run automatic setup
 
 For convenience, this demo contains a script for setting up all the steps explained below.
@@ -232,7 +239,7 @@ When querying data an error messages is returned:
 docker compose exec schema-registry curl -u admin:admin http://localhost:8081/subjects/measurements-value/versions
 ```
 
-Please add now your valid Confluent Platform license to the `compose.yml` file as value for the variable `SCHEMA_REGISTRY_CONFLUENT_LICENSE`.
+Please add now your valid Confluent Platform license to the `.env` file by updating the variable `CP_LICENSE`. Note, that this variable will be used in many places in the `compose.yml` file. For Schema Registry, it sets the value for the variable `SCHEMA_REGISTRY_CONFLUENT_LICENSE`.
 Then restart the schema registry instances:
 
 ```shell
